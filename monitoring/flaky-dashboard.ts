@@ -2,6 +2,7 @@
 import { FlakyTestResult } from '../detection/flaky-detector';
 import { QuarantineRecord, TestQuarantineManager } from '../quarantine/test-quarantine';
 import express from 'express';
+import session from 'express-session';
 import { Server } from 'socket.io';
 import http from 'http';
 
@@ -31,8 +32,50 @@ export class FlakyTestDashboard {
 
     private setupRoutes(): void {
         this.app.use(express.static('public'));
+        this.app.use(express.urlencoded({ extended: true }));
         this.app.use(express.json());
         this.app.set('view engine', 'ejs');
+
+        this.app.use(session({
+            secret: 'flaky-shield-secret',
+            resave: false,
+            saveUninitialized: false,
+            cookie: { secure: false } // For local dev
+        }));
+
+        const requireAuth = (req: any, res: any, next: any) => {
+            if (req.session?.user) {
+                next();
+            } else {
+                if (req.path.startsWith('/api/') && req.path !== '/api/webhook/event') {
+                    res.status(401).json({ error: 'Unauthorized' });
+                } else {
+                    res.redirect('/login');
+                }
+            }
+        };
+
+        // Auth Routes
+        this.app.get('/login', (req, res) => {
+            res.render('login', { error: null });
+        });
+
+        this.app.post('/login', (req: any, res) => {
+            const { username, password } = req.body;
+            // Simple hardcoded auth
+            if (username === 'admin' && password === 'flaky123') {
+                req.session.user = { username };
+                res.redirect('/');
+            } else {
+                res.render('login', { error: 'Invalid credentials' });
+            }
+        });
+
+        this.app.post('/logout', (req: any, res) => {
+            req.session.destroy(() => {
+                res.redirect('/login');
+            });
+        });
 
         // Webhook for internal processes to notify dashboard
         this.app.post('/api/webhook/event', (req, res) => {
@@ -42,7 +85,7 @@ export class FlakyTestDashboard {
         });
 
         // Dashboard home
-        this.app.get('/', async (req, res) => {
+        this.app.get('/', requireAuth, async (req, res) => {
             const stats = await this.quarantineManager.getQuarantineStats();
             const activeQuarantines = await this.quarantineManager.getActiveQuarantines();
 
@@ -59,34 +102,34 @@ export class FlakyTestDashboard {
         });
 
         // Flaky tests list
-        this.app.get('/api/flaky-tests', async (req, res) => {
+        this.app.get('/api/flaky-tests', requireAuth, async (req, res) => {
             const detector = new (require('../detection/flaky-detector').FlakyTestDetector)();
             const flakyTests = await detector.getFlakyTests(30);
             res.json(flakyTests);
         });
 
         // Quarantine details
-        this.app.get('/api/quarantine/:testId', async (req, res) => {
+        this.app.get('/api/quarantine/:testId', requireAuth, async (req, res) => {
             const records = await this.quarantineManager.getActiveQuarantines();
             const record = records.find(r => r.testId === req.params.testId);
             res.json(record || {});
         });
 
         // Heal a test
-        this.app.post('/api/heal/:testId', async (req, res) => {
+        this.app.post('/api/heal/:testId', requireAuth, async (req, res) => {
             await this.quarantineManager.healTest(req.params.testId, 'Manual heal via dashboard');
             this.io.emit('test-healed', { testId: req.params.testId });
             res.json({ success: true });
         });
 
         // Test history
-        this.app.get('/api/history/:testId', async (req, res) => {
+        this.app.get('/api/history/:testId', requireAuth, async (req, res) => {
             // Implementation depends on your data storage
             res.json({ testId: req.params.testId, history: [] });
         });
 
         // Export data
-        this.app.get('/api/export', async (req, res) => {
+        this.app.get('/api/export', requireAuth, async (req, res) => {
             const detector = new (require('../detection/flaky-detector').FlakyTestDetector)();
             const flakyTests = await detector.getFlakyTests(0);
             const quarantines = await this.quarantineManager.getActiveQuarantines();
