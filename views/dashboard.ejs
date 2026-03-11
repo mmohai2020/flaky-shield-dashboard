@@ -464,7 +464,7 @@
                                         </div>
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline" onclick="healTest('<%= test.testId %>')">
+                                        <button class="btn btn-sm btn-outline" onclick="healTest(decodeURIComponent('<%= encodeURIComponent(test.testId) %>'))">
                                             <i data-lucide="wrench" size="14"></i> Try Heal
                                         </button>
                                     </td>
