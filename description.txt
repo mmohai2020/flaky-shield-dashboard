@@ -1,0 +1,1 @@
+An intelligent dashboard for monitoring, quarantining, and auto-healing flaky Playwright tests.
