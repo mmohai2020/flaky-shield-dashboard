@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlakyShield Dashboard</title>
+
+    <!-- Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #09090b;
+            --bg-card: rgba(24, 24, 27, 0.6);
+            --bg-card-hover: rgba(39, 39, 42, 0.8);
+            --border: rgba(255, 255, 255, 0.08);
+
+            --primary: #8b5cf6;
+            --primary-glow: rgba(139, 92, 246, 0.5);
+
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+
+            --text-main: #fafafa;
+            --text-muted: #a1a1aa;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            background-image:
+                radial-gradient(circle at 15% 50%, rgba(139, 92, 246, 0.08), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.08), transparent 25%);
+        }
+
+        h1,
+        h2,
+        h3,
+        .brand {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        /* Layout */
+        .app-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Glass Cards */
+        .glass-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .glass-card:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .brand {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, #a1a1aa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0.5rem 0;
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        th {
+            text-align: left;
+            padding: 1rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.875rem;
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            vertical-align: middle;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Badges */
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .badge-client {
+            background: rgba(59, 130, 246, 0.1);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .badge-env {
+            background: rgba(16, 185, 129, 0.1);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .badge-fail {
+            background: rgba(239, 68, 68, 0.1);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        /* Actions */
+        .btn {
+            border: none;
+            background: var(--primary);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            background: #7c3aed;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--text-main);
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-sm {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-in {
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-weight: 500;
+            position: relative;
+        }
+
+        .tab.active {
+            color: var(--text-main);
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -0.6rem;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--primary);
+            box-shadow: 0 0 8px var(--primary);
+        }
+
+        /* Search */
+        .search-bar {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            color: white;
+            width: 300px;
+            font-family: inherit;
+        }
+
+        .search-bar:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            transform: translateY(150%);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <header>
+            <div class="brand">
+                <i data-lucide="shield-alert"></i>
+                FlakyShield
+            </div>
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <span style="color: var(--text-muted); font-size: 0.9rem;">
+                    Updated: <span id="last-updated">
+                        <%= lastUpdated %>
+                    </span>
+                </span>
+                <button class="btn btn-outline btn-sm" onclick="window.location.reload()">
+                    <i data-lucide="refresh-cw" size="14"></i> Refresh
+                </button>
+            </div>
+        </header>
+
+        <!-- Key Metrics -->
+        <section class="stats-grid">
+            <div class="glass-card animate-in" style="animation-delay: 0.1s;">
+                <div style="display: flex; justify-content: space-between;">
+                    <div class="stat-label">Active Quarantines</div>
+                    <i data-lucide="alert-octagon" color="var(--danger)" size="20"></i>
+                </div>
+                <div class="stat-value" style="color: var(--danger); text-shadow: 0 0 20px rgba(239, 68, 68, 0.3);">
+                    <%= stats.active %>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">
+                    Blocked from CI/CD
+                </div>
+            </div>
+
+            <div class="glass-card animate-in" style="animation-delay: 0.2s;">
+                <div style="display: flex; justify-content: space-between;">
+                    <div class="stat-label">System Health</div>
+                    <i data-lucide="activity" color="var(--primary)" size="20"></i>
+                </div>
+                <div class="stat-value">
+                    <%= (100 - stats.averageFlakyScore).toFixed(1) %>%
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">
+                    Overall stability score
+                </div>
+            </div>
+
+            <div class="glass-card animate-in" style="animation-delay: 0.3s;">
+                <div style="display: flex; justify-content: space-between;">
+                    <div class="stat-label">Auto-Healed</div>
+                    <i data-lucide="check-circle-2" color="var(--success)" size="20"></i>
+                </div>
+                <div class="stat-value" style="color: var(--success); text-shadow: 0 0 20px rgba(16, 185, 129, 0.3);">
+                    <%= stats.healed %>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">
+                    Recovered test cases
+                </div>
+            </div>
+
+            <div class="glass-card animate-in" style="animation-delay: 0.4s;">
+                <div style="display: flex; justify-content: space-between;">
+                    <div class="stat-label">Total Monitored</div>
+                    <i data-lucide="layers" color="var(--warning)" size="20"></i>
+                </div>
+                <div class="stat-value">
+                    <%= stats.total %>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">
+                    Across <%= Object.keys(stats.byClient).length %> clients
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Content -->
+        <div class="glass-card animate-in" style="animation-delay: 0.5s;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <div class="tabs">
+                    <button class="tab active" onclick="switchTab('quarantine')">Active Quarantines</button>
+                    <button class="tab" onclick="switchTab('all-flaky')">All Flaky Tests</button>
+                    <button class="tab" onclick="switchTab('charts')">Analytics</button>
+                </div>
+                <input type="text" id="searchInput" class="search-bar" placeholder="Filter tests..."
+                    onkeyup="filterTable()">
+            </div>
+
+            <!-- TAB: Quarantines -->
+            <div id="tab-quarantine" class="tab-content">
+                <section class="table-container">
+                    <table id="quarantineTable">
+                        <thead>
+                            <tr>
+                                <th>Test Case</th>
+                                <th>Reason</th>
+                                <th>Stability</th>
+                                <th>Quarantined</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% activeQuarantines.forEach(test=> { %>
+                                <tr>
+                                    <td>
+                                        <div style="font-weight: 500; margin-bottom: 0.25rem;">
+                                            <%= test.testName %>
+                                        </div>
+                                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                            <span class="badge badge-client"><i data-lucide="users" size="10"></i>
+                                                <%= test.client %>
+                                            </span>
+                                            <span class="badge badge-env"><i data-lucide="globe" size="10"></i>
+                                                <%= test.environment %>
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span style="color: var(--text-muted); font-size: 0.9rem;">
+                                            <%= test.reason %>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div
+                                            style="width: 100px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 4px; margin-bottom: 0.5rem; overflow: hidden;">
+                                            <div
+                                                style="width: <%= test.flakyScore %>%; height: 100%; background: var(--danger);">
+                                            </div>
+                                        </div>
+                                        <div style="font-size: 0.75rem; color: var(--text-muted);">Score: <%=
+                                                test.flakyScore %>/100</div>
+                                    </td>
+                                    <td>
+                                        <div style="font-size: 0.9rem;">
+                                            <%= new Date(test.quarantinedAt).toLocaleDateString() %>
+                                        </div>
+                                        <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                            <%= new Date(test.quarantinedAt).toLocaleTimeString() %>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline" onclick="healTest('<%= test.testId %>')">
+                                            <i data-lucide="wrench" size="14"></i> Try Heal
+                                        </button>
+                                    </td>
+                                </tr>
+                                <% }) %>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+
+            <!-- TAB: All Flaky -->
+            <div id="tab-all-flaky" class="tab-content" style="display: none;">
+                <section class="table-container">
+                    <table id="flakyTable">
+                        <thead>
+                            <tr>
+                                <th>Test Case</th>
+                                <th>Confidence</th>
+                                <th>Flaky Score</th>
+                                <th>Success Rate</th>
+                                <th>Last Failure</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% if (typeof allFlakyTests !=='undefined' ) { %>
+                                <% allFlakyTests.forEach(test=> { %>
+                                    <tr>
+                                        <td>
+                                            <div style="font-weight: 500;">
+                                                <%= test.testName %>
+                                            </div>
+                                            <div style="font-size: 0.8rem; color: var(--text-muted);">
+                                                <%= test.filePath %>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <%= test.confidence %>%
+                                        </td>
+                                        <td>
+                                            <span
+                                                style="color: <%= test.flakyScore > 50 ? 'var(--danger)' : 'var(--warning)' %>; font-weight: bold;">
+                                                <%= test.flakyScore %>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <%= Math.round(test.successRate) %>%
+                                        </td>
+                                        <td>
+                                            <% if (test.failurePatterns.length> 0) { %>
+                                                <span class="badge badge-fail">
+                                                    <%= test.failurePatterns[0].type %>
+                                                </span>
+                                                <% } else { %>
+                                                    <span class="badge"
+                                                        style="background: rgba(255,255,255,0.1);">Unknown</span>
+                                                    <% } %>
+                                        </td>
+                                    </tr>
+                                    <% }) %>
+                                        <% } %>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+
+            <!-- TAB: Charts -->
+            <div id="tab-charts" class="tab-content" style="display: none; padding: 1rem;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                    <div>
+                        <h3>Flakiness by Client</h3>
+                        <canvas id="clientChart"></canvas>
+                    </div>
+                    <div>
+                        <h3>Flakiness by Environment</h3>
+                        <canvas id="envChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Data -->
+    <div id="chart-data" data-client="<%= JSON.stringify(stats.byClient) %>"
+        data-env="<%= JSON.stringify(stats.byEnvironment) %>" style="display: none;">
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast">
+        <i data-lucide="check-circle" color="var(--success)"></i>
+        <span id="toast-msg">Action completed successfully</span>
+    </div>
+
+    <script>
+        // Init Icons
+        lucide.createIcons();
+
+        // Tabs
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+
+            document.getElementById('tab-' + tabName).style.display = 'block';
+            event.target.classList.add('active');
+        }
+
+        // Heal Action
+        // Heal Action
+        async function healTest(testId) {
+            const btn = event.target.closest('button');
+            if (!btn) return;
+
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Applying...';
+            btn.disabled = true;
+            lucide.createIcons();
+
+            try {
+                const res = await fetch(`/api/heal/${encodeURIComponent(testId)}`, { method: 'POST' });
+                const data = await res.json();
+
+                if (res.ok && data.success !== false) {
+                    showToast('✅ Fix applied! Verifying...');
+                    btn.innerHTML = '<i data-lucide="check"></i> Healed';
+                    btn.style.borderColor = 'var(--success)';
+                    btn.style.color = 'var(--success)';
+
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    throw new Error(data.message || 'Server error');
+                }
+            } catch (e) {
+                showToast('❌ Failed: ' + e.message);
+                console.error(e);
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                lucide.createIcons();
+            }
+        }
+
+        // Toast
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // Simple Filter
+        function filterTable() {
+            const input = document.getElementById("searchInput");
+            const filter = input.value.toUpperCase();
+            const activeTab = document.querySelector('.tab.active').innerText;
+            const tableId = activeTab.includes('Quarantines') ? 'quarantineTable' : 'flakyTable';
+            const table = document.getElementById(tableId);
+            const tr = table.getElementsByTagName("tr");
+
+            for (let i = 1; i < tr.length; i++) {
+                const tdName = tr[i].getElementsByTagName("td")[0];
+                if (tdName) {
+                    const txtValue = tdName.textContent || tdName.innerText;
+                    tr[i].style.display = txtValue.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+                }
+            }
+        }
+
+        // Charts
+        const dataEl = document.getElementById('chart-data');
+        if (dataEl) {
+            const clientData = JSON.parse(dataEl.dataset.client);
+            const envData = JSON.parse(dataEl.dataset.env);
+
+            Chart.defaults.color = '#a1a1aa';
+            Chart.defaults.borderColor = 'rgba(255,255,255,0.05)';
+
+            new Chart(document.getElementById('clientChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(clientData),
+                    datasets: [{
+                        data: Object.values(clientData),
+                        backgroundColor: ['#8b5cf6', '#ec4899', '#10b981', '#f59e0b'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { plugins: { legend: { position: 'bottom' } } }
+            });
+
+            new Chart(document.getElementById('envChart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(envData),
+                    datasets: [{
+                        label: 'Tests',
+                        data: Object.values(envData),
+                        backgroundColor: '#10b981',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: { beginAtZero: true },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // Polling (every 10s)
+        setInterval(() => {
+            // We could do a smarter fetch here, but for now reload is safest to get full EJS re-render of complex tables
+            // Ideally we'd fetch JSON and rebuild DOM, but that's a larger refactor.
+            // Leaving as manual refresh for now to avoid losing UI state (like typed search)
+        }, 10000);
+    </script>
+</body>
+
+</html>

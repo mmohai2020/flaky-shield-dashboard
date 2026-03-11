@@ -1,0 +1,26 @@
+{
+  "name": "flaky-test-dashboard",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "cross-env START_DASHBOARD=true ts-node integrations/main.ts",
+    "test": "playwright test",
+    "test:flaky": "playwright test tests/flaky-simulation.spec.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "ejs": "^3.1.10",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.0.5",
+    "cross-env": "^10.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
