@@ -1,42 +1,23 @@
+// debug-healer.ts
+import 'dotenv/config';
+import { TestQuarantineManager } from './quarantine/test-quarantine';
+import { getDatabase } from './db/database';
 
-import { AutoHealer } from './quarantine/auto-healer';
-import { QuarantineRecord } from './quarantine/test-quarantine';
+async function run() {
+    console.log('Starting Auto-Healer Test...');
+    const db = await getDatabase();
+    const row = await db.get("SELECT testId, testName FROM quarantine_registry WHERE testName LIKE '%Broken Selector%'");
+    
+    if (!row) {
+        console.error('No quarantined test found matching "Broken Selector".');
+        return;
+    }
 
-async function testHealer() {
-    const healer = new AutoHealer();
-    const filePath = 'd:\\flaky-test-dashboard\\tests\\healing-demo.spec.ts';
-
-    console.log(`Checking file: ${filePath}`);
-
-    const record: QuarantineRecord = {
-        testId: 'test-demo',
-        testName: 'Demo: Broken Selector',
-        filePath: filePath,
-        client: 'Demo-Client',
-        environment: 'uat',
-        quarantinedAt: new Date(),
-        reason: 'debug',
-        flakyScore: 50,
-        status: 'active',
-        autoHealAttempts: 1,
-        failurePatterns: [],
-        quarantineRule: 'debug',
-        metadata: {}
-    };
-
-    // Case 1: Selector
-    const selectorError = "Error: locator('#wrong-button-id') not found";
-    console.log(`\n--- Case 1: Selector Error ---`);
-    console.log(`Input Error: ${selectorError}`);
-    const result1 = await healer.attemptHeal(record, selectorError);
-    console.log(JSON.stringify(result1, null, 2));
-
-    // Case 2: Timeout
-    const timeoutError = "TimeoutError: page.waitForTimeout(100) exceeded";
-    console.log(`\n--- Case 2: Timeout Error ---`);
-    console.log(`Input Error: ${timeoutError}`);
-    const result2 = await healer.attemptHeal(record, timeoutError);
-    console.log(JSON.stringify(result2, null, 2));
+    console.log(`Found test to heal: ${row.testName} (${row.testId})`);
+    
+    const qm = new TestQuarantineManager();
+    await qm.healTest(row.testId, 'Manual heal via CLI');
+    console.log('Heal process completed.');
 }
 
-testHealer().catch(console.error);
+run().catch(console.error);

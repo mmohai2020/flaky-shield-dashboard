@@ -1,4 +1,5 @@
 // main.ts - Integration point
+import 'dotenv/config';
 import { FlakyTestDashboard } from '../monitoring/flaky-dashboard';
 import { CIIntegration } from './ci-integration';
 import { FlakyTestDetector } from '../detection/flaky-detector';
