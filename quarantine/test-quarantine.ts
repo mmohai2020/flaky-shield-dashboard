@@ -1,6 +1,8 @@
 // quarantine/test-quarantine.ts
 import { FlakyTestResult } from '../detection/flaky-detector';
 import { AutoHealer } from './auto-healer';
+import { getDatabase } from '../db/database';
+import { notifyDashboard } from '../utils/notify-dashboard';
 
 export interface QuarantineRule {
     id: string;
@@ -36,7 +38,6 @@ export class TestQuarantineManager {
 
     constructor() {
         this.initializeDefaultRules();
-        this.loadQuarantineRegistry();
     }
 
     private initializeDefaultRules(): void {
@@ -105,6 +106,7 @@ export class TestQuarantineManager {
     }
 
     async evaluateTest(test: FlakyTestResult): Promise<QuarantineRecord | null> {
+        await this.loadQuarantineRegistryAsync();
         // Check if already quarantined
         const existing = this.quarantineRegistry.get(test.testId);
         if (existing && existing.status === 'active') {
@@ -163,6 +165,7 @@ export class TestQuarantineManager {
     }
 
     async shouldSkipTest(testId: string): Promise<boolean> {
+        await this.loadQuarantineRegistryAsync();
         const record = this.quarantineRegistry.get(testId);
 
         if (!record || record.status !== 'active') {
@@ -186,6 +189,7 @@ export class TestQuarantineManager {
     }
 
     async shouldRetryOnly(testId: string): Promise<boolean> {
+        await this.loadQuarantineRegistryAsync();
         const record = this.quarantineRegistry.get(testId);
 
         if (!record || record.status !== 'active') {
@@ -209,6 +213,7 @@ export class TestQuarantineManager {
     }
 
     async recordTestSuccess(testId: string): Promise<void> {
+        await this.loadQuarantineRegistryAsync();
         const record = this.quarantineRegistry.get(testId);
         if (!record || record.status !== 'active') {
             return;
@@ -235,6 +240,7 @@ export class TestQuarantineManager {
     }
 
     async recordTestFailure(testId: string, error: string): Promise<void> {
+        await this.loadQuarantineRegistryAsync();
         const record = this.quarantineRegistry.get(testId);
         if (!record || record.status !== 'active') {
             return;
@@ -292,7 +298,7 @@ export class TestQuarantineManager {
 
     async healTest(testId: string, reason: string): Promise<void> {
         // CRITICAL: Reload registry to ensure we have the latest state from the runner process
-        this.loadQuarantineRegistry();
+        await this.loadQuarantineRegistryAsync();
 
         console.log(`[Heal] Requesting heal for ID: ${testId}`);
         const record = this.quarantineRegistry.get(testId);
@@ -340,13 +346,13 @@ export class TestQuarantineManager {
 
 
     async getActiveQuarantines(): Promise<QuarantineRecord[]> {
-        this.loadQuarantineRegistry();
+        await this.loadQuarantineRegistryAsync();
         return Array.from(this.quarantineRegistry.values())
             .filter(r => r.status === 'active');
     }
 
     async getQuarantineStats(): Promise<QuarantineStats> {
-        this.loadQuarantineRegistry();
+        await this.loadQuarantineRegistryAsync();
         const records = Array.from(this.quarantineRegistry.values());
 
         return {
@@ -502,41 +508,61 @@ export class TestQuarantineManager {
         }
     }
 
-    private loadQuarantineRegistry(): void {
+    private async loadQuarantineRegistryAsync(): Promise<void> {
         try {
-            const fs = require('fs');
-            const path = require('path');
-
-            const registryPath = path.join(__dirname, '../data/quarantine-registry.json');
-            if (fs.existsSync(registryPath)) {
-                const data = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
-                data.forEach((record: any) => {
-                    this.quarantineRegistry.set(record.testId, {
-                        ...record,
-                        quarantinedAt: new Date(record.quarantinedAt),
-                        expiresAt: record.expiresAt ? new Date(record.expiresAt) : undefined,
-                        lastHealAttempt: record.lastHealAttempt ? new Date(record.lastHealAttempt) : undefined
-                    });
+            const db = await getDatabase();
+            const rows = await db.all('SELECT * FROM quarantine_registry');
+            this.quarantineRegistry.clear();
+            for (const row of rows) {
+                this.quarantineRegistry.set(row.testId, {
+                    ...row,
+                    quarantinedAt: new Date(row.quarantinedAt),
+                    expiresAt: row.expiresAt ? new Date(row.expiresAt) : undefined,
+                    lastHealAttempt: row.lastHealAttempt ? new Date(row.lastHealAttempt) : undefined,
+                    failurePatterns: JSON.parse(row.failurePatterns),
+                    metadata: row.metadata ? JSON.parse(row.metadata) : undefined
                 });
             }
         } catch (error) {
-            console.warn('Failed to load quarantine registry:', error);
+            console.warn('Failed to load quarantine registry from db:', error);
         }
     }
 
     private async saveQuarantineRegistry(): Promise<void> {
-        const fs = require('fs');
-        const path = require('path');
-
-        const registryPath = path.join(__dirname, '../data/quarantine-registry.json');
-        const data = Array.from(this.quarantineRegistry.values()).map(record => ({
-            ...record,
-            quarantinedAt: record.quarantinedAt.toISOString(),
-            expiresAt: record.expiresAt?.toISOString(),
-            lastHealAttempt: record.lastHealAttempt?.toISOString()
-        }));
-
-        fs.writeFileSync(registryPath, JSON.stringify(data, null, 2));
+        const db = await getDatabase();
+        
+        for (const [testId, record] of this.quarantineRegistry.entries()) {
+            await db.run(`
+                INSERT INTO quarantine_registry (
+                    testId, testName, filePath, client, environment, quarantinedAt, expiresAt,
+                    reason, flakyScore, failurePatterns, quarantineRule, autoHealAttempts,
+                    lastHealAttempt, status, metadata
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(testId) DO UPDATE SET 
+                    testName=excluded.testName,
+                    filePath=excluded.filePath,
+                    client=excluded.client,
+                    environment=excluded.environment,
+                    quarantinedAt=excluded.quarantinedAt,
+                    expiresAt=excluded.expiresAt,
+                    reason=excluded.reason,
+                    flakyScore=excluded.flakyScore,
+                    failurePatterns=excluded.failurePatterns,
+                    quarantineRule=excluded.quarantineRule,
+                    autoHealAttempts=excluded.autoHealAttempts,
+                    lastHealAttempt=excluded.lastHealAttempt,
+                    status=excluded.status,
+                    metadata=excluded.metadata
+            `, [
+                record.testId, record.testName, record.filePath, record.client, record.environment,
+                record.quarantinedAt.toISOString(), record.expiresAt?.toISOString() || null,
+                record.reason, record.flakyScore, JSON.stringify(record.failurePatterns),
+                record.quarantineRule, record.autoHealAttempts, record.lastHealAttempt?.toISOString() || null,
+                record.status, record.metadata ? JSON.stringify(record.metadata) : null
+            ]);
+        }
+        
+        notifyDashboard('quarantine-updated', { timestamp: new Date() });
     }
 }
 

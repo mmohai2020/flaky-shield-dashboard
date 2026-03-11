@@ -2,20 +2,44 @@
 import { FlakyTestResult } from '../detection/flaky-detector';
 import { QuarantineRecord, TestQuarantineManager } from '../quarantine/test-quarantine';
 import express from 'express';
+import { Server } from 'socket.io';
+import http from 'http';
 
 export class FlakyTestDashboard {
     private app: express.Application;
+    private server: http.Server;
+    private io: Server;
     private quarantineManager: TestQuarantineManager;
 
     constructor(private port: number = 3001) {
         this.app = express();
+        this.server = http.createServer(this.app);
+        this.io = new Server(this.server);
         this.quarantineManager = new TestQuarantineManager();
         this.setupRoutes();
+        this.setupSockets();
+    }
+
+    private setupSockets(): void {
+        this.io.on('connection', (socket) => {
+            console.log('🔌 Dashboard client connected via WebSocket');
+            socket.on('disconnect', () => {
+                console.log('🔌 Dashboard client disconnected');
+            });
+        });
     }
 
     private setupRoutes(): void {
         this.app.use(express.static('public'));
+        this.app.use(express.json());
         this.app.set('view engine', 'ejs');
+
+        // Webhook for internal processes to notify dashboard
+        this.app.post('/api/webhook/event', (req, res) => {
+            const { type, payload } = req.body;
+            this.io.emit(type, payload);
+            res.status(200).send();
+        });
 
         // Dashboard home
         this.app.get('/', async (req, res) => {
@@ -51,6 +75,7 @@ export class FlakyTestDashboard {
         // Heal a test
         this.app.post('/api/heal/:testId', async (req, res) => {
             await this.quarantineManager.healTest(req.params.testId, 'Manual heal via dashboard');
+            this.io.emit('test-healed', { testId: req.params.testId });
             res.json({ success: true });
         });
 
@@ -83,8 +108,9 @@ export class FlakyTestDashboard {
     }
 
     start(): void {
-        this.app.listen(this.port, () => {
+        this.server.listen(this.port, () => {
             console.log(`📊 Flaky Test Dashboard running at http://localhost:${this.port}`);
+            console.log(`🔌 WebSocket server is active on port ${this.port}`);
         });
     }
 }

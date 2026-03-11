@@ -1,6 +1,7 @@
-// detection/flaky-detector.ts
 import { TestInfo, TestStatus } from '@playwright/test';
 import { ClientConfig } from '../utils/client-factory';
+import { getDatabase } from '../db/database';
+import { notifyDashboard } from '../utils/notify-dashboard';
 
 export interface FlakyTestResult {
     testId: string;
@@ -392,71 +393,55 @@ export class FlakyTestDetector {
     }
 
     async saveFlakyTestResult(result: FlakyTestResult): Promise<void> {
-        const db = this.getDatabase();
-        await db.collection('flaky_tests').updateOne(
-            { testId: result.testId },
-            { $set: result, $push: { detections: { date: new Date(), score: result.flakyScore } } },
-            { upsert: true }
-        );
+        const db = await getDatabase();
+        
+        // Ensure detections exist
+        const existing = await db.get(`SELECT detections FROM flaky_tests WHERE testId = ?`, [result.testId]);
+        let detections = existing?.detections ? JSON.parse(existing.detections) : [];
+        detections.push({ date: new Date().toISOString(), score: result.flakyScore });
+
+        await db.run(`
+            INSERT INTO flaky_tests (
+                testId, testName, filePath, client, environment, flakyScore, confidence, 
+                failurePatterns, detectionDate, lastStableDate, consecutiveFailures, 
+                totalRuns, successRate, avgDuration, durationVariance, detections
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(testId) DO UPDATE SET 
+                testName=excluded.testName,
+                filePath=excluded.filePath,
+                client=excluded.client,
+                environment=excluded.environment,
+                flakyScore=excluded.flakyScore,
+                confidence=excluded.confidence,
+                failurePatterns=excluded.failurePatterns,
+                detectionDate=excluded.detectionDate,
+                lastStableDate=excluded.lastStableDate,
+                consecutiveFailures=excluded.consecutiveFailures,
+                totalRuns=excluded.totalRuns,
+                successRate=excluded.successRate,
+                avgDuration=excluded.avgDuration,
+                durationVariance=excluded.durationVariance,
+                detections=excluded.detections
+        `, [
+            result.testId, result.testName, result.filePath, result.client, result.environment,
+            result.flakyScore, result.confidence, JSON.stringify(result.failurePatterns),
+            result.detectionDate.toISOString(), result.lastStableDate?.toISOString() || null,
+            result.consecutiveFailures, result.totalRuns, result.successRate,
+            result.avgDuration, result.durationVariance, JSON.stringify(detections)
+        ]);
+
+        notifyDashboard('test-flaky', result);
     }
 
     async getFlakyTests(threshold: number = 30): Promise<FlakyTestResult[]> {
-        const db = this.getDatabase();
-        return await db.collection('flaky_tests')
-            .find({ flakyScore: { $gte: threshold } })
-            .sort({ flakyScore: -1 })
-            .toArray();
-    }
-
-    private getDatabase() {
-        // Implementation depends on your DB (MongoDB, SQLite, etc.)
-        // For simplicity, using a file-based approach
-        const fs = require('fs');
-        const path = require('path');
-
-        const dbPath = path.join(__dirname, '../data/flaky-history.db.json');
-        if (!fs.existsSync(dbPath)) {
-            fs.writeFileSync(dbPath, JSON.stringify({ flaky_tests: [] }));
-        }
-
-        const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-
-        return {
-            collection: (name: string) => ({
-                find: (query: any) => ({
-                    sort: (sort: any) => ({
-                        toArray: () => data[name]?.filter((item: any) =>
-                            Object.keys(query).every(key => {
-                                if (key === 'flakyScore' && query[key].$gte) {
-                                    return item[key] >= query[key].$gte;
-                                }
-                                return item[key] === query[key];
-                            })
-                        ) || []
-                    })
-                }),
-                updateOne: async (filter: any, update: any, options: any) => {
-                    const collection = data[name] || [];
-                    const index = collection.findIndex((item: any) =>
-                        Object.keys(filter).every(key => item[key] === filter[key])
-                    );
-
-                    if (index === -1 && options.upsert) {
-                        collection.push(update.$set);
-                    } else if (index !== -1) {
-                        collection[index] = { ...collection[index], ...update.$set };
-                        if (update.$push) {
-                            Object.keys(update.$push).forEach(key => {
-                                if (!collection[index][key]) collection[index][key] = [];
-                                collection[index][key].push(update.$push[key]);
-                            });
-                        }
-                    }
-
-                    data[name] = collection;
-                    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
-                }
-            })
-        };
+        const db = await getDatabase();
+        const rows = await db.all(`SELECT * FROM flaky_tests WHERE flakyScore >= ? ORDER BY flakyScore DESC`, [threshold]);
+        return rows.map(row => ({
+            ...row,
+            failurePatterns: JSON.parse(row.failurePatterns),
+            detectionDate: new Date(row.detectionDate),
+            lastStableDate: row.lastStableDate ? new Date(row.lastStableDate) : undefined,
+            detections: JSON.parse(row.detections)
+        }));
     }
 }

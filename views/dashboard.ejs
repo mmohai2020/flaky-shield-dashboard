@@ -17,6 +17,9 @@
     <!-- Charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+    <!-- Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+
     <style>
         :root {
             --bg-dark: #09090b;
@@ -664,12 +667,28 @@
             });
         }
 
-        // Polling (every 10s)
-        setInterval(() => {
-            // We could do a smarter fetch here, but for now reload is safest to get full EJS re-render of complex tables
-            // Ideally we'd fetch JSON and rebuild DOM, but that's a larger refactor.
-            // Leaving as manual refresh for now to avoid losing UI state (like typed search)
-        }, 10000);
+        // Real-time WebSockets update
+        const socket = io();
+        
+        socket.on('connect', () => {
+            console.log('Connected to real-time updates');
+        });
+        
+        let updateTimeout;
+        const handleUpdate = (type) => {
+            showToast(`🔄 Real-time update: ${type}`);
+            
+            // Debounce the reload to prevent spamming if many events happen at once
+            clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(() => {
+                window.location.reload();
+            }, 2500);
+        };
+
+        // Listeners for backend events
+        socket.on('test-flaky', () => handleUpdate('New flaky test detected'));
+        socket.on('quarantine-updated', () => handleUpdate('Quarantine status changed'));
+        socket.on('test-healed', () => handleUpdate('Test was auto-healed'));
     </script>
 </body>
 
