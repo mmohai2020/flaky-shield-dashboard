@@ -1,4 +1,5 @@
 // playwright.config.ts - Add flaky test configuration
+import 'dotenv/config';
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({

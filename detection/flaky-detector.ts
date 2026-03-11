@@ -78,6 +78,11 @@ export class FlakyTestDetector {
         const history = this.getTestHistory(testId);
         history.push(runHistory);
 
+        // Do not penalize skipped tests as flaky failures
+        if (runHistory.status === 'skipped') {
+            return null;
+        }
+
         // Only analyze after sufficient runs
         if (history.length < this.MIN_RUNS_FOR_ANALYSIS) {
             return null;
