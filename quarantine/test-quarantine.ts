@@ -284,12 +284,14 @@ export class TestQuarantineManager {
 
             record.metadata.lastHealResult = healResult;
 
-            // If healing suggests fix, mark for review instead of auto-heal
+            // If healing suggests fix, auto-apply it instead of waiting for review
             if (healResult.confidence > 70) {
-                // For the demo, we want to allow manual approval, so we keep it active but ready
-                // record.status = 'healed'; 
-                // record.metadata.healedBy = 'auto-healer';
-                // record.metadata.healedAt = new Date();
+                record.status = 'healed'; 
+                record.metadata.healedBy = 'auto-healer';
+                record.metadata.healedAt = new Date();
+
+                // Automatically apply the AI fix to the file
+                await this.applyHealFix(record);
 
                 await this.notifyHealed(record, healResult);
             }

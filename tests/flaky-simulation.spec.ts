@@ -52,49 +52,17 @@ test.describe('Flaky Scenarios', () => {
         }
     });
 
-    // Scenario 2: Selector/Locator Issues - FIXED for "locator('#wrong-button-id') not found"
-    // Root Cause: Incorrect selector and lack of explicit waiting for dynamic elements.
-    // The original test likely attempted to click a button using '#wrong-button-id',
-    // which never existed or was not present when the action was attempted.
-    test('Scenario: Dynamic DOM (Selector Not Found) - Fixed', async ({ page, client }) => {
-        client.id = 'Client-DOM-Fixed';
+    // Scenario 2: Selector/Locator Issues
+    // Simulates dynamic DOM where an element might be missing or ID changes
+    test('Scenario: Dynamic DOI (Selector Not Found)', async ({ page, client }) => {
+        client.id = 'Client-DOM';
         await page.goto('about:blank');
 
-        // Simulate an element appearing dynamically after a delay.
-        // This also simulates the flakiness: sometimes the delay is longer.
-        const dynamicDelay = isFlaky(0.5) ? 1500 : 200; // Simulate slow loading sometimes
-
-        // Initially, render content without the target button.
-        await page.setContent('<div>Loading application content...</div>');
-
-        // Wait for the simulated dynamic content to load.
-        await page.waitForTimeout(dynamicDelay);
-
-        // Now, render the content with the *correct* button ID.
-        // The original test mistakenly used '#wrong-button-id' when '#submit-order-button' was needed.
-        await page.setContent(`
-            <div>Application content loaded!</div>
-            <button id="submit-order-button">Submit Order</button>
-        `);
-
-        // FIX:
-        // 1. Correct the selector to the actual and stable ID: '#submit-order-button'.
-        // 2. Add an explicit wait for the element to become visible and actionable using Playwright's `expect().toBeVisible()`.
-        //    This robustly handles dynamic loading and element presence, eliminating the flakiness.
-        const submitButtonLocator = page.locator('#submit-order-button');
-
-        await expect(submitButtonLocator).toBeVisible({ timeout: 10000 }); // Wait up to 10 seconds for visibility
-        await submitButtonLocator.click();
-
-        // Add a robust assertion to verify the action was successful (e.g., a success message appears).
-        // This part also simulates a change in the DOM after the click.
-        await page.setContent(`
-            <div>
-                <h1>Order Confirmation</h1>
-                <p>Order submitted successfully!</p>
-            </div>
-        `);
-        await expect(page.locator('text=Order submitted successfully!')).toBeVisible();
+        if (isFlaky(0.6)) {
+            // Simulate missing element
+            throw new Error('Locator: button[data-testid="submit-order"] not found after 5000ms');
+        }
+        // Pass
     });
 
     // Scenario 3: Network Stability
