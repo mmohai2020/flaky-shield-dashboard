@@ -80,4 +80,25 @@ If a test fails but requires manual approval before applying the AI fix:
 1. Open the Dashboard at `http://localhost:3001`.
 2. Find the offending test under **Active Quarantines**.
 3. Click the **Try Heal** button. 
-4. The backend will look up the pre-computed Gemini fix and apply it. The table will refresh and the test will turn green!
+8. The backend will look up the pre-computed Gemini fix and apply it. The table will refresh and the test will turn green!
+
+## 🔌 Integration Guide
+
+Do you already have a Playwright test suite and want FlakyShield to watch and auto-heal your native tests? 
+
+Integrating is seamless because FlakyShield is built as a **Playwright Fixture Extension**. You do not need to rewrite your tests; you just need to change where your `test` object is imported from!
+
+1. **Move your tests** into this repository (or copy the FlakyShield core folders `integrations/`, `detection/`, and `quarantine/` into your existing repo).
+2. **Update your imports**. Open your existing `.spec.ts` files. 
+3. Change the standard Playwright import:
+   ```typescript
+   // ❌ Remove this:
+   // import { test, expect } from '@playwright/test';
+   ```
+   To use the FlakyShield extended fixture:
+   ```typescript
+   // ✅ Define this instead (adjust the relative path to your integration folder):
+   import { test } from '../integrations/playwright-integration';
+   import { expect } from '@playwright/test';
+   ```
+4. **That's it!** The `integrations/playwright-integration.ts` file automatically attaches the `flakyTestHooks`. Every time your test cases run, passing or failing, the hooks will intercept the results, stream them to the SQLite `flaky-shield.sqlite` database, and trigger the Gemini AI Auto-Healer exactly as described above.
