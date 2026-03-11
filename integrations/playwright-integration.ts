@@ -75,11 +75,14 @@ export const test = base.extend<{
             }
         }
 
+        // Re-evaluate testId because tests can modify client properties dynamically
+        const finalTestId = `${client.id}:${testInfo.file}:${testInfo.title}:${testInfo.line}`;
+
         // Update quarantine manager with test result
         if (testInfo.status === 'passed') {
-            await quarantineManager.recordTestSuccess(testId);
+            await quarantineManager.recordTestSuccess(finalTestId);
         } else if (testInfo.status === 'failed') {
-            await quarantineManager.recordTestFailure(testId, testInfo.error?.message || 'Unknown error');
+            await quarantineManager.recordTestFailure(finalTestId, testInfo.error?.message || 'Unknown error');
         }
     }, { auto: true }],
 
