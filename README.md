@@ -80,7 +80,7 @@ If a test fails but requires manual approval before applying the AI fix:
 1. Open the Dashboard at `http://localhost:3001`.
 2. Find the offending test under **Active Quarantines**.
 3. Click the **Try Heal** button. 
-8. The backend will look up the pre-computed Gemini fix and apply it. The table will refresh and the test will turn green!
+4. The backend will look up the pre-computed Gemini fix and apply it. The table will refresh and the test will turn green!
 
 ## 🔌 Integration Guide
 
